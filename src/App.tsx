@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Routes, Route, useNavigate } from 'react-router-dom';
 import { Header } from './components/Header';
@@ -10,6 +10,7 @@ import { MarketingFooter } from './components/MarketingFooter';
 import { SignInSignUpForm } from './components/SignInSignUpForm';
 import { useArticles } from './hooks/useArticles';
 import { useLocalStorage } from './hooks/useLocalStorage';
+import { useAuth } from './hooks/useAuth';
 import { SearchFilters, UserPreferences, ArticleCategory, ThreatLevel } from './types';
 import CyberSecurityLandingPage from './components/ui/CyberSecurityLandingPage';
 import CyberSecurityNewsFeed from './components/ui/CyberSecurityNewsFeed';
@@ -44,8 +45,16 @@ function App() {
   const [isSignInForm, setIsSignInForm] = useState(true);
 
   const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
 
   const { articles, loading, generateAISummary, toggleBookmark, markAsRead } = useArticles(filters, preferences);
+
+  // Redirect authenticated users to feed
+  useEffect(() => {
+    if (!authLoading && user) {
+      navigate('/feed');
+    }
+  }, [user, authLoading, navigate]);
 
   const handleSearch = useCallback((query: string) => {
     setFilters(prev => ({ ...prev, query }));
@@ -79,7 +88,7 @@ function App() {
   const unreadCount = articles.filter(article => !article.isRead).length;
 
   const handleLoginSuccess = useCallback(() => {
-    navigate('/feed'); // Redirect to news feed upon successful login
+    navigate('/feed');
   }, [navigate]);
 
   const fadeIn = {
@@ -97,11 +106,23 @@ function App() {
     }
   };
 
+  // Show loading spinner while checking auth
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-black text-white font-sans flex items-center justify-center">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+          <span>Loading...</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-black text-white font-sans">
       <Routes>
         <Route path="/" element={<CyberSecurityLandingPage onSignInSuccess={handleLoginSuccess} />} />
-        <Route path="/feed" element={<CyberSecurityNewsFeed />} />
+        <Route path="/feed" element={user ? <CyberSecurityNewsFeed /> : <CyberSecurityLandingPage onSignInSuccess={handleLoginSuccess} />} />
       </Routes>
     </div>
   );

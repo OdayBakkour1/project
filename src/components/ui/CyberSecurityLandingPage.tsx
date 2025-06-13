@@ -12,8 +12,9 @@ import {
   NavigationMenuList,
   NavigationMenuTrigger,
 } from "./navigation-menu";
-import { Menu, MoveRight, X, Shield, Globe, Users, BookmarkIcon, Github, Twitter, ChevronLeft } from "lucide-react";
+import { Menu, MoveRight, X, Shield, Globe, Users, BookmarkIcon, Github, Twitter, ChevronLeft, AlertCircle, CheckCircle } from "lucide-react";
 import { cn } from "../lib/utils";
+import { useAuth } from "../../hooks/useAuth";
 
 // Glow Component
 const Glow = React.forwardRef<
@@ -503,7 +504,7 @@ function HeroSection() {
             transition={{ duration: 1, delay: 0.6 }}
             className="relative w-full pt-12 px-4 sm:px-6 lg:px-8"
           >
-                        <Mockup className="shadow-[0_0_50px_-12px_rgba(0,0,0,0.3)] border-primary/10">
+            <Mockup className="shadow-[0_0_50px_-12px_rgba(0,0,0,0.3)] border-primary/10">
               <img
                 src="https://images.unsplash.com/photo-1563206767-5b18f218e8de?w=1248&h=765&fit=crop&q=80"
                 alt="CyberWatch Security Dashboard"
@@ -598,12 +599,42 @@ function AuthFormSection({ onSignInSuccess }: { onSignInSuccess: () => void }) {
     email: '',
     password: ''
   });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const { signUp, signIn } = useAuth();
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Here you would typically handle the form submission
-    console.log('Form submitted:', { isSignUp, ...formData });
-    // onSignInSuccess(); // This should only be called after successful authentication
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      if (isSignUp) {
+        const { data, error } = await signUp(formData.email, formData.password, formData.name);
+        if (error) {
+          setError(error.message);
+        } else {
+          setSuccess('Account created successfully! Please check your email to verify your account.');
+          // Reset form
+          setFormData({ name: '', email: '', password: '' });
+        }
+      } else {
+        const { data, error } = await signIn(formData.email, formData.password);
+        if (error) {
+          setError(error.message);
+        } else {
+          setSuccess('Signed in successfully!');
+          onSignInSuccess();
+        }
+      }
+    } catch (err) {
+      setError('An unexpected error occurred. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -633,7 +664,11 @@ function AuthFormSection({ onSignInSuccess }: { onSignInSuccess: () => void }) {
           <p className="mt-2 text-muted-foreground">
             {isSignUp ? "Already have an account?" : "Don't have an account?"}{" "}
             <button
-              onClick={() => setIsSignUp(!isSignUp)}
+              onClick={() => {
+                setIsSignUp(!isSignUp);
+                setError(null);
+                setSuccess(null);
+              }}
               className="text-primary hover:underline"
             >
               {isSignUp ? "Sign in." : "Create one."}
@@ -641,15 +676,41 @@ function AuthFormSection({ onSignInSuccess }: { onSignInSuccess: () => void }) {
           </p>
         </div>
 
+        {/* Error/Success Messages */}
+        {error && (
+          <div className="mb-4 p-3 rounded-md bg-destructive/10 border border-destructive/20 flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-destructive" />
+            <span className="text-sm text-destructive">{error}</span>
+          </div>
+        )}
+
+        {success && (
+          <div className="mb-4 p-3 rounded-md bg-green-500/10 border border-green-500/20 flex items-center gap-2">
+            <CheckCircle className="w-4 h-4 text-green-500" />
+            <span className="text-sm text-green-500">{success}</span>
+          </div>
+        )}
+
         <div className="mb-6 space-y-3">
           <div className="grid grid-cols-2 gap-3">
-            <button aria-label="Sign in with Twitter" className="relative z-0 flex items-center justify-center gap-2 overflow-hidden rounded-md border border-border bg-muted px-4 py-2 font-semibold text-foreground transition-all duration-500 hover:scale-105 active:scale-95">
+            <button 
+              aria-label="Sign in with Twitter" 
+              className="relative z-0 flex items-center justify-center gap-2 overflow-hidden rounded-md border border-border bg-muted px-4 py-2 font-semibold text-foreground transition-all duration-500 hover:scale-105 active:scale-95"
+              disabled={loading}
+            >
               <Twitter size={20} />
             </button>
-            <button aria-label="Sign in with Github" className="relative z-0 flex items-center justify-center gap-2 overflow-hidden rounded-md border border-border bg-muted px-4 py-2 font-semibold text-foreground transition-all duration-500 hover:scale-105 active:scale-95">
+            <button 
+              aria-label="Sign in with Github" 
+              className="relative z-0 flex items-center justify-center gap-2 overflow-hidden rounded-md border border-border bg-muted px-4 py-2 font-semibold text-foreground transition-all duration-500 hover:scale-105 active:scale-95"
+              disabled={loading}
+            >
               <Github size={20} />
             </button>
-            <button className="col-span-2 relative z-0 flex items-center justify-center gap-2 overflow-hidden rounded-md border border-border bg-muted px-4 py-2 font-semibold text-foreground transition-all duration-500 hover:scale-105 active:scale-95">
+            <button 
+              className="col-span-2 relative z-0 flex items-center justify-center gap-2 overflow-hidden rounded-md border border-border bg-muted px-4 py-2 font-semibold text-foreground transition-all duration-500 hover:scale-105 active:scale-95"
+              disabled={loading}
+            >
               Sign {isSignUp ? "up" : "in"} with SSO
             </button>
           </div>
@@ -675,6 +736,8 @@ function AuthFormSection({ onSignInSuccess }: { onSignInSuccess: () => void }) {
                 onChange={handleInputChange}
                 placeholder="John Doe"
                 className="w-full rounded-md border border-border bg-background px-3 py-2 text-foreground placeholder-muted-foreground ring-1 ring-transparent transition-shadow focus:outline-0 focus:ring-primary"
+                required={isSignUp}
+                disabled={loading}
               />
             </div>
           )}
@@ -690,6 +753,8 @@ function AuthFormSection({ onSignInSuccess }: { onSignInSuccess: () => void }) {
               onChange={handleInputChange}
               placeholder="your.email@provider.com"
               className="w-full rounded-md border border-border bg-background px-3 py-2 text-foreground placeholder-muted-foreground ring-1 ring-transparent transition-shadow focus:outline-0 focus:ring-primary"
+              required
+              disabled={loading}
             />
           </div>
           <div className="mb-6">
@@ -711,10 +776,20 @@ function AuthFormSection({ onSignInSuccess }: { onSignInSuccess: () => void }) {
               onChange={handleInputChange}
               placeholder="••••••••••••"
               className="w-full rounded-md border border-border bg-background px-3 py-2 text-foreground placeholder-muted-foreground ring-1 ring-transparent transition-shadow focus:outline-0 focus:ring-primary"
+              required
+              disabled={loading}
+              minLength={6}
             />
           </div>
-          <Button type="submit" className="w-full">
-            {isSignUp ? "Create Account" : "Sign in"}
+          <Button type="submit" className="w-full" disabled={loading}>
+            {loading ? (
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                {isSignUp ? "Creating Account..." : "Signing In..."}
+              </div>
+            ) : (
+              isSignUp ? "Create Account" : "Sign in"
+            )}
           </Button>
         </form>
 
@@ -853,7 +928,7 @@ function CyberSecurityLandingPage({ onSignInSuccess }: { onSignInSuccess: () => 
   const rightLinks = [
     { href: "/careers", label: "Careers" },
     { href: "/about", label: "About" },
-    { href: "/contact", "label": "Contact" },
+    { href: "/contact", label: "Contact" },
     { href: "https://twitter.com/cyberwatch", label: "Twitter" },
     { href: "https://github.com/cyberwatch", label: "GitHub" },
   ];
@@ -875,4 +950,4 @@ function CyberSecurityLandingPage({ onSignInSuccess }: { onSignInSuccess: () => 
   );
 }
 
-export default CyberSecurityLandingPage; 
+export default CyberSecurityLandingPage;

@@ -13,7 +13,8 @@ import {
   X,
   Check,
   ChevronsUpDown,
-  Loader2
+  Loader2,
+  LogOut
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { Button } from "./button";
@@ -44,11 +45,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import UserProfileSettingsDialog from "./UserProfileSettingsDialog";
 import UserSettingsDialog from "./UserSettingsDialog";
-
-// Utility function
-// function cn(...classes: (string | undefined | null | false)[]): string {
-//   return classes.filter(Boolean).join('');
-// }
+import { useAuth } from "../../hooks/useAuth";
 
 // Types
 interface CyberSecurityArticle {
@@ -339,11 +336,15 @@ function CyberSecurityNewsFeed() {
   const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
 
   const navigate = useNavigate();
+  const { user, signOut } = useAuth();
 
-  const handleLogout = () => {
-    // Implement actual logout logic here (e.g., clear tokens, user data)
-    console.log("Logging out...");
-    navigate("/"); // Redirect to landing page
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      navigate("/");
+    } catch (error) {
+      console.error("Error signing out:", error);
+    }
   };
 
   const handleProfile = () => {
@@ -453,6 +454,11 @@ function CyberSecurityNewsFeed() {
             <p className="text-muted-foreground text-lg">
               Stay updated with the latest cybersecurity threats, vulnerabilities, and industry news
             </p>
+            {user && (
+              <p className="text-sm text-muted-foreground mt-2">
+                Welcome back, {user.user_metadata?.full_name || user.email}
+              </p>
+            )}
           </div>
           <div>
             <Popover>
@@ -463,7 +469,10 @@ function CyberSecurityNewsFeed() {
                 <div className="grid gap-1">
                   <button className="px-2 py-1.5 text-sm rounded-md hover:bg-accent text-left" onClick={handleProfile}>Profile</button>
                   <button className="px-2 py-1.5 text-sm rounded-md hover:bg-accent text-left" onClick={handleSettings}>Settings</button>
-                  <button className="px-2 py-1.5 text-sm rounded-md hover:bg-accent text-left text-destructive" onClick={handleLogout}>Logout</button>
+                  <button className="px-2 py-1.5 text-sm rounded-md hover:bg-accent text-left text-destructive flex items-center gap-2" onClick={handleLogout}>
+                    <LogOut className="w-4 h-4" />
+                    Logout
+                  </button>
                 </div>
               </PopoverContent>
             </Popover>
@@ -563,8 +572,6 @@ function CyberSecurityNewsFeed() {
               </CardHeader>
 
               <CardContent className="pt-0">
-                
-
                 {/* Tags */}
                 <div className="flex flex-wrap gap-1 mb-4">
                   {article.tags.slice(0, 3).map((tag) => (
@@ -692,4 +699,4 @@ function CyberSecurityNewsFeed() {
   );
 }
 
-export default CyberSecurityNewsFeed; 
+export default CyberSecurityNewsFeed;
