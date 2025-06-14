@@ -12,7 +12,7 @@ import {
   NavigationMenuList,
   NavigationMenuTrigger,
 } from "./navigation-menu";
-import { Menu, MoveRight, X, Shield, Globe, Users, BookmarkIcon, Github, Twitter, ChevronLeft, AlertCircle, CheckCircle } from "lucide-react";
+import { Menu, MoveRight, X, Shield, Globe, Users, BookmarkIcon, Github, Twitter, ChevronLeft, AlertCircle, CheckCircle, Info } from "lucide-react";
 import { cn } from "../lib/utils";
 import { useAuth } from "../../hooks/useAuth";
 
@@ -591,6 +591,42 @@ function StatsSection() {
   );
 }
 
+// Helper function to get user-friendly error messages
+const getAuthErrorMessage = (error: any): string => {
+  const errorMessage = error?.message?.toLowerCase() || '';
+  
+  if (errorMessage.includes('invalid login credentials') || errorMessage.includes('invalid_credentials')) {
+    return 'The email or password you entered is incorrect. Please check your credentials and try again.';
+  }
+  
+  if (errorMessage.includes('email not confirmed')) {
+    return 'Please check your email and click the confirmation link before signing in.';
+  }
+  
+  if (errorMessage.includes('user not found')) {
+    return 'No account found with this email address. Please check your email or create a new account.';
+  }
+  
+  if (errorMessage.includes('too many requests')) {
+    return 'Too many login attempts. Please wait a few minutes before trying again.';
+  }
+  
+  if (errorMessage.includes('weak password')) {
+    return 'Password is too weak. Please use at least 6 characters with a mix of letters and numbers.';
+  }
+  
+  if (errorMessage.includes('email already registered') || errorMessage.includes('user already registered')) {
+    return 'An account with this email already exists. Please sign in instead or use a different email.';
+  }
+  
+  if (errorMessage.includes('invalid email')) {
+    return 'Please enter a valid email address.';
+  }
+  
+  // Return the original error message if we don't have a specific handler
+  return error?.message || 'An unexpected error occurred. Please try again.';
+};
+
 // Auth Form Component
 function AuthFormSection({ onSignInSuccess }: { onSignInSuccess: () => void }) {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -602,8 +638,9 @@ function AuthFormSection({ onSignInSuccess }: { onSignInSuccess: () => void }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [showPasswordReset, setShowPasswordReset] = useState(false);
 
-  const { signUp, signIn } = useAuth();
+  const { signUp, signIn, resetPassword } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -615,7 +652,7 @@ function AuthFormSection({ onSignInSuccess }: { onSignInSuccess: () => void }) {
       if (isSignUp) {
         const { data, error } = await signUp(formData.email, formData.password, formData.name);
         if (error) {
-          setError(error.message);
+          setError(getAuthErrorMessage(error));
         } else {
           setSuccess('Account created successfully! Please check your email to verify your account.');
           // Reset form
@@ -624,7 +661,11 @@ function AuthFormSection({ onSignInSuccess }: { onSignInSuccess: () => void }) {
       } else {
         const { data, error } = await signIn(formData.email, formData.password);
         if (error) {
-          setError(error.message);
+          setError(getAuthErrorMessage(error));
+          // Show password reset option for invalid credentials
+          if (error.message?.toLowerCase().includes('invalid login credentials')) {
+            setShowPasswordReset(true);
+          }
         } else {
           setSuccess('Signed in successfully!');
           onSignInSuccess();
@@ -637,9 +678,50 @@ function AuthFormSection({ onSignInSuccess }: { onSignInSuccess: () => void }) {
     }
   };
 
+  const handlePasswordReset = async () => {
+    if (!formData.email) {
+      setError('Please enter your email address first.');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const { error } = await resetPassword(formData.email);
+      if (error) {
+        setError(getAuthErrorMessage(error));
+      } else {
+        setSuccess('Password reset email sent! Please check your inbox.');
+        setShowPasswordReset(false);
+      }
+    } catch (err) {
+      setError('Failed to send password reset email. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+    // Clear error when user starts typing
+    if (error) {
+      setError(null);
+    }
+    // Hide password reset option when user changes email
+    if (name === 'email' && showPasswordReset) {
+      setShowPasswordReset(false);
+    }
+  };
+
+  const handleModeSwitch = () => {
+    setIsSignUp(!isSignUp);
+    setError(null);
+    setSuccess(null);
+    setShowPasswordReset(false);
+    // Clear form when switching modes
+    setFormData({ name: '', email: '', password: '' });
   };
 
   return (
@@ -664,12 +746,9 @@ function AuthFormSection({ onSignInSuccess }: { onSignInSuccess: () => void }) {
           <p className="mt-2 text-muted-foreground">
             {isSignUp ? "Already have an account?" : "Don't have an account?"}{" "}
             <button
-              onClick={() => {
-                setIsSignUp(!isSignUp);
-                setError(null);
-                setSuccess(null);
-              }}
+              onClick={handleModeSwitch}
               className="text-primary hover:underline"
+              disabled={loading}
             >
               {isSignUp ? "Sign in." : "Create one."}
             </button>
@@ -678,9 +757,24 @@ function AuthFormSection({ onSignInSuccess }: { onSignInSuccess: () => void }) {
 
         {/* Error/Success Messages */}
         {error && (
-          <div className="mb-4 p-3 rounded-md bg-destructive/10 border border-destructive/20 flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-destructive" />
-            <span className="text-sm text-destructive">{error}</span>
+          <div className="mb-4 p-3 rounded-md bg-destructive/10 border border-destructive/20">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-destructive mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <span className="text-sm text-destructive">{error}</span>
+                {showPasswordReset && (
+                  <div className="mt-2">
+                    <button
+                      onClick={handlePasswordReset}
+                      className="text-xs text-primary hover:underline"
+                      disabled={loading}
+                    >
+                      Reset your password
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
@@ -688,6 +782,16 @@ function AuthFormSection({ onSignInSuccess }: { onSignInSuccess: () => void }) {
           <div className="mb-4 p-3 rounded-md bg-green-500/10 border border-green-500/20 flex items-center gap-2">
             <CheckCircle className="w-4 h-4 text-green-500" />
             <span className="text-sm text-green-500">{success}</span>
+          </div>
+        )}
+
+        {/* Info message for new users */}
+        {isSignUp && (
+          <div className="mb-4 p-3 rounded-md bg-blue-500/10 border border-blue-500/20 flex items-start gap-2">
+            <Info className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
+            <span className="text-sm text-blue-500">
+              Create an account to access personalized cybersecurity news feeds and threat intelligence.
+            </span>
           </div>
         )}
 
@@ -763,9 +867,14 @@ function AuthFormSection({ onSignInSuccess }: { onSignInSuccess: () => void }) {
                 Password
               </label>
               {!isSignUp && (
-                <a href="#" className="text-sm text-primary">
+                <button
+                  type="button"
+                  onClick={() => setShowPasswordReset(!showPasswordReset)}
+                  className="text-sm text-primary hover:underline"
+                  disabled={loading}
+                >
                   Forgot?
-                </a>
+                </button>
               )}
             </div>
             <input
@@ -780,6 +889,11 @@ function AuthFormSection({ onSignInSuccess }: { onSignInSuccess: () => void }) {
               disabled={loading}
               minLength={6}
             />
+            {isSignUp && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Password must be at least 6 characters long
+              </p>
+            )}
           </div>
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? (
